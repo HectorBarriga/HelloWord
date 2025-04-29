@@ -1,0 +1,69 @@
+Notes:
+- If interested in Kubernetes helm, complete first C:\Users\hbarriga\Documents\TANGO\MANUALS\DevOps\Kubernetes\Tango Kubernetes Cluster.txt
+- Read http://confluence:8090/display/IT/GitLab. Its about gitlab tango basic info
+- Maurice explaining how gitlab was installed on tango lab http://localhost:8090/display/IT/IT+Operations+Plan+for+GitLab
+- Good book about git (and some about gitlab) https://git-scm.com/book/en/v2/Getting-Started-Summary
+- Good gitlab tutorial in youtube: https://www.youtube.com/watch?v=OWaZXtgq28c&list=PLhW3qG5bs-L8YSnCiyQ-jD8XfHC2W1NL_&index=2
+- http://confluence:8090/pages/viewpage.action?pageId=33167689 (Done by Iain Cambell to propose a versioning way for logstash changes under /etc/)
+
+1. Add this alias in laptops windows etc/hosts
+192.168.24.48 gitlab
+
+2. Connect NetExtender VPN
+
+3.  Reset password :   http://gitlab/users/password/new?user_email=hector.barriga%40tangotelecom.com
+
+4. Login http://gitlab/users/sign_in
+Notes:
+- gitlab account is hbarriga. You can also login with tango email account
+
+hbarriga (or hector.barriga@tangotelecom.com)
+Password = Personal one
+
+
+5. Configure ssh connecton to gitlab server
+Notes:
+- You wont be able to ssh to gitlab machine (no bash console account/password). So you need to add it via gitlab GUI << Step 5.1
+- You will receive an email after added << Step 5.1
+- If not using sshuttle (It is not perfect), you will still need to configure ssh connection to be able to use git command to pull respositories from gitlab server (192.168.24.48). Note: No need to run ssh command since it is not needed (The git uses http) and besides we dont have that server's root or tango's password   << Step  5.3
+
+5.1 Add /root/.ssh/rsa_id.pub in gitlab via GUI only
+Notes: 
+- You must have created  /root/.ssh/rsa_id.pub on my DEVOPS-HECTOR-VM1. Use passwordless steps from "usual comands.txt" guide
+- Copy key on gitlab GUI. Set any "title"
+
+http://gitlab/profile/keys
+
+5.2 Add gitlab alias in /etc/hosts <<<<<<<< My DEVOPS-HECTOR-VM1 (runs on my laptop)
+/etc/hosts
+192.168.24.48 gitlab
+
+
+5.3 Add this Host in /root/.ssh/config          <<<<<<<<< Skip this step if using sshuttle. For Mobily PCF, you have to use this
+Host gitlab
+        Hostname gitlab
+        User root
+        IdentityFile /root/.ssh/id_rsa
+        ProxyCommand ssh hector@86.43.69.175 -p 15202 -W %h:%p
+		
+		
+6. Configure your account "hbarriga" in your laptop "DEVOPS-HECTOR-VM1" git. This is done once in order for "DEVOPS-HECTOR-VM1" to download (pull) repositories/projects from Tango gitlab directly from tango gitlab without having to put user name all the time 
+6.1 Add user and email
+git config --global user.name "hbarriga"
+git config --global user.email hector.barriga@tangotelecom.com
+
+6.2 Checks
+6.2.1 Check /root/.gitconfig is created
+[root@DEVOPS-HECTOR-VM1 15:55:15 ~]# cat /root/.gitconfig
+[user]
+        name = hbarriga
+        email = hector.barriga@tangotelecom.com
+
+6.2.2 Lists
+[root@DEVOPS-HECTOR-VM1 15:55:43 source]# git config --global --list
+user.name=hbarriga
+user.email=hector.barriga@tangotelecom.com
+
+
+
+
