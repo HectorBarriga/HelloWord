@@ -1,0 +1,1137 @@
+####################################################################
+############# 3.1.1	Nginx Installation  ############################
+####################################################################
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++ ANSIBLE role: nginx task: "nginx.ym"  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+---------------------------------------PREREQUISITES: ------------------------------------------------
+Download rpm package and place under /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/ 
+---------------------------------------CONFIGURATION:-------------------------------------------------
+
+################  Add this line in roles/nginx/tasks/nginx.yml to allow "disable_gpg_check"
+<---
+- name: Load Variables
+  include_vars: "{{ nginx_vars_file }}"
+  no_log: yes
+
+- name: Install nginx from yum repo             <<<<<<<<<<<<<<<< Already there
+  yum:        <<<<<<<<<<<<<<<< Already there
+    name: nginx        <<<<<<<<<<<<<<<< Already there
+    state: present        <<<<<<<<<<<<<<<< Already there
+  when: not local_package_install | bool        <<<<<<<<<<<<<<<< Already there
+
+- name: "Check if RHEL8 ISO dvd repo {{ remote_mount_point }} is already mounted"
+  shell: df | grep "{{ remote_mount_point }}" | wc -l
+  register: rhel8_repo_iso_mounted
+
+- name: RHEL8 ISO dvd repo status. stdout=0 unmounted  stdout=1 mounted
+  debug: var=rhel8_repo_iso_mounted
+
+- name: "Activate RHEL8 ISO dvd repo - Mount {{ remote_iso_path }}/{{ iso_file | basename }} to the {{ remote_mount_point }}"
+  mount:
+    path: "{{ remote_mount_point }}"
+    src: "{{ remote_iso_path }}/{{ iso_file | basename }}"
+    fstype: iso9660
+    opts: ro,noauto
+    state: mounted
+  when: reactivate_rhel8_iso_dvd_repo | bool and rhel8_repo_iso_mounted.stdout|int == 0
+
+- name: Install nginx from local filesystem in remote host
+  yum:
+    name: "{{ local_packages_directory }}/{{ nginx_package_file }}"
+    state: present
+    disable_gpg_check: yes
+  when: local_package_install | bool
+
+- name: Install nginx-mod-stream from RHEL8 ISO dvd repo
+  yum:
+    name: "nginx-mod-stream"
+    state: present
+<code>
+
+
+<code>
+- name: Deactivate RHEL8 ISO dvd repo - Unmounted
+  mount:
+    path: /media/rhel8.5-repo-iso
+    state: unmounted
+  when: reactivate_rhel8_iso_dvd_repo | bool and rhel8_repo_iso_mounted.stdout|int == 0
+<EOF>
+
+
+
+
+################ Fix nginx.confi.j2 template:
+
+roles/nginx/templates/nginx/configuration/nginx.conf.j2
+
+It should be like this:
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+daemon on;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    limit_conn_zone $binary_remote_addr zone=perip:10m;
+    limit_req_zone $binary_remote_addr zone=req_limit_per_ip:10m rate=1000r/s;
+
+    include /etc/nginx/conf.d/tomcat-basic.conf;            <<<<<<<<<<<<< Fix this line
+	include /etc/nginx/conf.d/stream/stream.conf;    <<<<<<<<<<<<< Add this line
+
+}
+
+
+################ Add these task in  roles/nginx/tasks/nginx.yml 
+
+- name: Remove default configuration /etc/nginx/conf.d/default.conf
+  file:
+    path: "/etc/nginx/conf.d/default.conf"
+    state: absent
+
+- name: "Copy and populate nginx config templates from templates/nginx/configuration to /etc/nginx" <<<<<<<<<< Before this current task
+
+
+cat /etc/ansible/playbooks/nginx.yml
+---
+- hosts: all
+  remote_user: root
+  gather_facts: yes
+  roles:
+    - { role: nginx, nginx_type: 'community' }          <<<<<<<< Select community (plus is with license)
+	
+	
+
+roles/nginx/defaults/main.yml
+---
+nginx_types:
+  - community
+  - plus
+local_package_install: true                         <<<<<<<<<< To install nginx from rpm file (not repo)
+local_packages_directory: /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx
+
+
+roles/nginx/vars/nginx.yml
+---
+nginx_package_file: nginx-1.14.0-1.el7_4.ngx.x86_64.rpm                <<<<<<< Latest version. Make sure you use correct RHEL OS version
+templates_base_path: "{{ templates_path }}/nginx/configuration"
+files_base_path: "{{ files_path }}/nginx"
+configure_firewalld: no           <<<<<<<<<<<< Always no
+nginx_server_name: tangotelecom.com             <<<<<<<<<< Must match with certs configure below in public_key_filename and private_key_filename
+pmui_port: 8200
+ims_host: localhost
+ims_port: 8225
+campaign_manager_host: localhost
+campaign_manager_port: 8181
+referral_manager_host: localhost
+referral_manager_port: 8282
+document_store_host: localhost
+document_store_port: 8289
+esi_host: localhost
+esi_port: 8755
+subscriber_manager_host: localhost
+subscriber_manager_port: 8182
+kibana_public_host: localhost
+kibana_public_port: 5601
+kibana_private_host: localhost
+kibana_private_port: 5602
+public_key_filename: tangotelecom.com.cert.pem                   <<<<<<<<<<< Must match with nginx_server_name domain above
+private_key_filename: tangotelecom.com.pem
+
+
+# Reactivate  RHEL ISO DEV Repository
+reactivate_rhel8_iso_dvd_repo: true
+
+# iso file to be copied to remote host. It is an URL if local_package_install is false.
+# If the iso file is already exists in the remote_iso_path, define the iso file name here.
+#iso_file: /tango/install/rhel-server-8.5-x86_64-dvd.iso
+iso_file: rhel-8.5-x86_64-dvd.iso
+
+# Remote path to place the iso file.
+remote_iso_path: /tango/install
+
+# Remote mount point
+remote_mount_point: /media/rhel8.5-repo-iso
+
+
+
+
+
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++ ANSIBLE role: nginx task: "nginx.yml"  END +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+3.1.1.1 If machines has internet access do: (If not internet access, skip this step and do 3.1.1.2 instead)
+To install Nginx we shall refer to their formal instructons, found at:
+
+https://www.nginx.com/resources/admin-guide/installing-nginx-open-source/
+
+Now choose the installation method so jump to: 
+Installing Red Hat/CentOS Packages.
+
+It is recommended to download from the nginx yum repository so jump to: 
+Installing From NGINX Repository
+
+The nginx.repo file to use is:
+
+[nginx]
+name=nginx repo
+baseurl=http://nginx.org/packages/centos/7/$basearch/
+gpgcheck=0
+enabled=1
+
+3.1.1.2 This step is when machince doesnt have internet access like in Telefonica DRE. If there is internet access and you completed step 3.1.1.1, skip this step 3.1.1.2 and go to ??
+3.1.1.2.1 Download rpm from internet. The how to is at http://confluence:8090/display/DEV/Offline+Installation+of+Third+Party+Software
+
+Comment from John Lee: 
+"I used yum to download it from the official nginx yum repo. So I set up the official yum repo for nginx locally and ran:
+sudo yum install nginx --downloadonly --downloaddir=/tmp/nginx_repo"
+
+3.1.1.2.2 Check dependencies are already installed. They should be installed if you did a good "Pre-Installation" and  "Platform -Installation"
+
+# rpm -qa | grep initscripts
+initscripts-9.49.37-1.el7.x86_64   <<< Good
+
+# rpm -qa | grep chkconfig
+chkconfig-1.7.2-1.el7.x86_64     <<< Good
+
+# rpm -qa | grep shadow-utils
+shadow-utils-4.1.5.1-24.el7.x86_64 <<< Good
+
+# rpm -qa | grep perl <<< There should be about 212 files. They are in  /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/List_of_Perl_Dependencies.txt or 
+
+# rpm -qa | grep pcre
+pcre-devel-8.32-15.el7_2.1.x86_64    <<< Good
+pcre-8.32-15.el7_2.1.i686            <<< Good
+pcre-8.32-15.el7_2.1.x86_64          <<< Good
+
+# rpm -qa | grep zlib
+zlib-devel-1.2.7-17.el7.x86_64       <<< Good
+zlib-1.2.7-17.el7.x86_64             <<< Good
+zlib-1.2.7-17.el7.i686               <<< Good
+zlib-devel-1.2.7-17.el7.i686         <<< Good
+
+# rpm -qa | grep openssl
+openssl-devel-1.0.1e-60.el7.i686          <<< Good
+openssl-libs-1.0.1e-60.el7.x86_64         <<< Good
+openssl098e-0.9.8e-29.el7_2.3.x86_64      <<< Good
+openssl-libs-1.0.1e-60.el7.i686           <<< Good
+openssl-1.0.1e-60.el7.x86_64              <<< Good
+
+3.1.1.2.3 Install nginx rpm
+cd /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/
+yum -y install nginx-1.12.1-1.el7.ngx.x86_64.rpm
+
+yum list nginx  
+Installed Packages                      <<<<<<<< Good result
+nginx.x86_64                                      <<<<<<<< Good result                                                                                                 1:1.12.1-1.el7.ngx                                                                                                   installed                            <<<<<<<< Good result
+
+3.1.2 Now you can verify that the base installation is working:
+
+# nginx -v
+nginx version: nginx/1.12.1                  <<<<<<<< Or 1.12.0
+
+Note: The error and access logs can be found at: /var/log/nginx/   <<<<<<<< they should be empty (size 0) just after rpm installation
+
+ll  /var/log/nginx/
+-rw-r-----   1 nginx adm     0 Feb 20 12:39 access.log
+-rw-r-----   1 nginx adm     0 Feb 20 12:39 error.log
+
+
+3.1.3 	Nginx Configuration
+Warning!! The IP addresses and domains provided in the sample configuration below shall need to be modified to reflect deployment site parameters.
+
+Warning!! The configuration is provided in this guide is just examples. Don't copy and paste this onto the deployed system, but rather take the file from the PM-UI tarball as this reduces the risk of injecting syntax or more obscure errors.
+
+3.1.3.0 Make Nginx cache directory. 
+Notes:
+- This needs good permisions otherwise PMI will load partially!!
+
+chmod 775 /tango/data/ 
+
+
+3.1.3.1 The first step is to remove the default configuration.
+
+# rm -f /etc/nginx/conf.d/default.conf
+
+
+3.1.3.2 Configure /etc/nginx/nginx.conf   <<<<<<<<<<<<<< Remove ALL original lines and just copy and paste what is below:
+
+NOTE: The ideal nginx.conf as per PMUI Version 3.3.0 is in DVD or under /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/
+
+3.1.3.2.1 configure file
+vi /etc/nginx/nginx.conf  
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    limit_conn_zone $binary_remote_addr zone=perip:10m;
+    limit_req_zone $binary_remote_addr zone=req_limit_per_ip:10m rate=1000r/s;
+
+    include /etc/nginx/conf.d/tomcat-basic.conf;
+}
+
+
+3.1.3.2.2 Give permissions
+
+-rw-r--r-- 1 root  root     348 Dec 14 15:14 nginx.conf
+
+
+
+3.1.3.3 Create and configure /etc/nginx/conf.d/tomcat-basic.conf
+NOTE: 
+- If installing Nginx that was done for Trawell's PMI and SPCM or Telefonica BCP and CP, follow this guide instead:  C:\Users\hbarriga\Documents\TANGO\MANUALS\PCC\SPCM\How_To_Install_SPCM_API_via_Nginx_Reverse.txt
+- If installing PMI (From version PMI_11.0), you must use  nginx-telefonica_1.0.0 which was introduced in RTE_5.30 to install tomcat-basic.conf
+- The ideal tomcat-basic.conf as per PMUI Version 3.3.0 is in DVD or under /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/
+- Read http://confluence:8090/display/DEV/Configuring+Languages+and+Internationalization   (Nginx Configuration) (CHECK TELEFONICA FILE TO SEE EXACTLY WHERE TO PUT IT)
+Add thge following
+
+
+
+
+3.1.3.3.1 Copy it from tarball (Note!!! that for PMUI 3.1.0, this file was not good. So get it from DVD or from /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/ElasticSearch_Logstash/ which was probed to work ok
+
+cp -rfp /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/ElasticSearch_Logstash/tomcat-basic.conf.Ideal /etc/nginx/conf.d/tomcat-basic.conf
+
+NOTE!!! These two are exactly the same
+
+/tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/tomcat-basic.conf /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/ElasticSearch_Logstash/tomcat-basic.conf.Ideal.PMUI3.3.0
+
+/tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/nginx.conf /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/ElasticSearch_Logstash/nginx.conf.nginx.conf.Ideal.PMUI3.3.0
+
+
+
+
+3.1.3.3.2 Add document-store lines if using multi language + Internationalization (Note that tomcat-basic.conf.Ideal already have them in the right position)
+
+NOTE: The ideal tomcat-basic.conf as per PMUI Version 3.3.0 is in DVD or under /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/
+
+vi  /etc/nginx/conf.d/tomcat-basic.conf
+ 
+  
+upstream tomcat_document-store {
+  # Use IP Hash for session persistence using all 4 octets for IPv4
+  hash $remote_addr;
+
+  # List of Tomcat application servers used for pmui
+  server 172.19.1.16:8289;
+  server 172.19.1.17:8289;
+}
+
+
+## proxied document-store module
+location /document-store/ {
+  proxy_pass http://tomcat_document-store;
+  proxy_set_header X-Forwarded-Proto 'https';
+  proxy_buffering off;
+}
+
+
+3.1.3.3.3 Add Kibana lines if using it  (Note that tomcat-basic.conf.Ideal already have them in the right position)
+WARNING! It is important that the locate to /tango/analytics is placed above the location for /analytics.
+NOTE: The ideal tomcat-basic.conf as per PMUI Version 3.3.0 is in DVD or under /tango/data/install/TangoInstall_Linux_7.x_DVD_latest/ExtraPackages/Nginx/
+
+vi  /etc/nginx/conf.d/tomcat-basic.conf
+
+upstream tomcat_kibana {
+  # Use IP Hash for session persistence using all 4 octets for IPv4
+  hash $remote_addr;
+
+  # List of Tomcat application servers used for ims
+  server 172.19.1.16:5601;
+  server 172.19.1.17:5601;
+}
+
+upstream tomcat_admin_kibana {
+  # Use IP Hash for session persistence using all 4 octets for IPv4
+  hash $remote_addr;
+
+  # List of Tomcat application servers used for ims
+  server 172.19.1.16:5602;
+  server 172.19.1.17:5602;
+}
+
+...
+
+  location ~ /tango/analytics/(?<kibana_uri>.*) {
+    proxy_pass https://tomcat_admin_kibana/$kibana_uri$is_args$args;
+    proxy_ssl_certificate     /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+    proxy_ssl_certificate_key /etc/nginx/ssl/tango.telefonica.com.pem;
+    proxy_ssl_trusted_certificate /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+    proxy_ssl_session_reuse on;
+    proxy_ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    #proxy_set_header Credentials "Basic YWRtaW46dG1wMTIzNDU=";
+    #proxy_set_header Credentials "Basic aXJsZGZfdXNlcjp0bXAxMjM0NQ==";
+    #proxy_set_header Authorization "Basic YWRtaW46dG1wMTIzNDU=";
+    #proxy_set_header x-proxy-user "irldf";
+  }
+
+  location ~ /analytics/(?<kibana_uri>.*) {
+    proxy_pass https://tomcat_kibana/$kibana_uri$is_args$args;
+    proxy_ssl_certificate     /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+    proxy_ssl_certificate_key /etc/nginx/ssl/tango.telefonica.com.pem;
+    proxy_ssl_trusted_certificate /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+    proxy_ssl_session_reuse on;
+    proxy_ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    #proxy_set_header Credentials "Basic YWRtaW46dG1wMTIzNDU=";
+    #proxy_set_header Credentials "Basic aXJsZGZfdXNlcjp0bXAxMjM0NQ==";
+    #proxy_set_header Authorization "Basic YWRtaW46dG1wMTIzNDU=";
+    #proxy_set_header x-proxy-user "irldf";
+  }
+  
+  
+
+3.1.3.3.4 Set these changes:
+Set primary and secondary IPs on all these lines:
+    server 172.19.1.16:8200;
+    server 172.19.1.17:8200;
+    server 172.19.1.16:8225;
+    server 172.19.1.17:8225;
+    server 172.19.1.16:8181;
+    server 172.19.1.17:8181;
+    server 172.19.1.16:8282;
+    server 172.19.1.17:8282;
+    server 172.19.1.16:8289;
+    server 172.19.1.17:8289;
+    #server 172.19.1.16:8755;
+    #server 172.19.1.17:8755;
+    server 172.19.1.16:5601;
+    server 172.19.1.17:5601;
+    server 172.19.1.16:5602;
+    server 172.19.1.17:5602;
+  
+ 
+    
+3.1.3.3.5 Set permissions
+-rw-r--r-- 1 root  root   14596 Dec 14 17:47 tomcat-basic.conf
+
+3.1.4	Firewalld configuration. If firewall is already disabled, skip this step. It must have done in "Platform-Installation". Run step 3.1.3.4.1 to check just in case
+
+If firewalld is running it may be necessary to open ports here for nginx.
+
+3.1.4.1 Check is firewalld running:
+# systemctl status firewalld
+
+
+Example: This shows it is disabled
+â firewalld.service - firewalld - dynamic firewall daemon
+   Loaded: loaded (/usr/lib/systemd/system/firewalld.service; disabled; vendor preset: enabled)
+   Active: inactive (dead)
+     Docs: man:firewalld(1)
+
+	 
+Another check:
+# sestatus
+SELinux status:                 disabled
+
+3.1.4.2 Open the ports:
+
+sudo firewall-cmd --add-service=http
+sudo firewall-cmd --add-service=https
+sudo firewall-cmd --runtime-to-permanent
+
+
+htpasswd -c /etc/nginx/ao_ussd_auth/.htpasswd aoussdapi
+New password:              <<<<<<<<<<<<    HBoS#9UX
+Re-type new password:      <<<<<<<<<<<<    HBoS#9UX
+
+3.1.5	Creating certificates and private keys. If pub Cert is provided by CA, dont run 3.1.5.3.1 but 3.1.5.3.2 !!!
+The more desirable option from a security perspective is that a private key and public certificate   signed by a Certificate Authority (CA) is provided to Tango (This was the prefered way in TF), and we can store them under root access on the hosts using Nginx. We could put this private key and certificate in /etc/nginx/ssl. For example:
+
+[root@host]# pwd
+/etc/nginx/ssl
+[root@host]# ll
+total 8
+-rw-rw---- 1 tango tango 1501 Apr 12 11:53 tango.telefonica.com.cert.pem                 <<<<<<<<<<<< PUBLIC KEY
+-rw-rw---- 1 tango tango 1679 Apr 12 11:53 tango.telefonica.com.pem           <<<<<<<<<<<< PRIVATE KEY
+
+
+Note: The common name in the certificate must match the domain name of IP address serving the Nginx instances. Also, the common name must be a domain name and cannot be a hard-coded IP-Address, and so a suitable entry in a DNS server shall also be required.
+
+
+
+3.1.5.1 Check the directories and certificate files must match with what you set in  /etc/nginx/conf.d/tomcat-basic.conf in paramters: , ssl_certificate, proxy_ssl_certificate. Example:
+/etc/nginx/conf.d/tomcat-basic.conf:  ssl_certificate     /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+/etc/nginx/conf.d/tomcat-basic.conf:    proxy_ssl_certificate     /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+/etc/nginx/conf.d/tomcat-basic.conf:    proxy_ssl_trusted_certificate /etc/nginx/ssl/tango.telefonica.com.cert.pem;
+
+3.1.5.2 Create ssl directory as root
+mkdir /etc/nginx/ssl/
+
+3.1.5.3 Create certificats (private and public) as root:
+
+3.1.5.3.1 Creating self-signed certificates and private keys. Note: If certificates are provided by CA which is the ideal, skipt this step and do 3.1.5.3.2 instead
+
+INTRODUCTION:
+This method is not secure (Computer has to "trust" pub cert sent by PMI  (PMUI in the past) that is the actual one)
+
+Call Flow (No secured):
+Computer --------------> PMI (PMUI in the past)
+PMI  (PMUI in the past) ----pub cert (or CA Certificate) -----> Computer
+Computer asks user to store the pub cert sent by PMI (if user trusts it is the actual one)
+Computer matches stored pub cert (or CA cert) and PMI's pub cert. (They will match)
+Computer retrieves pub key
+Computer ------------ key pub + password ----------> PMI  (PMUI in the past)
+PMI  (PMUI in the past) --------login ok -----> Computer
+
+
+proxy_ssl_trusted_certificate
+# openssl req -x509 -nodes -days 14600 -newkey rsa:2048 -keyout /etc/nginx/ssl/tango.telefonica.com.pem -out /etc/nginx/ssl/tango.telefonica.com.cert.pem
+
+
+Generating a 2048 bit RSA private key
+..........................................................................+++
+.....+++
+writing new private key to '/etc/nginx/ssl/tango.telefonica.com.pem'
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [XX]:ES                    <<<<<<<<<<<<<<<<<<<<<< Set here
+State or Province Name (full name) []:MADRID                    <<<<<<<<<<<<<<<<<<<<<< Set here
+Locality Name (eg, city) [Default City]:MADRID                    <<<<<<<<<<<<<<<<<<<<<< Set here
+Organization Name (eg, company) [Default Company Ltd]:TELEFONICA                    <<<<<<<<<<<<<<<<<<<<<< Set here
+Organizational Unit Name (eg, section) []:TANGO                    <<<<<<<<<<<<<<<<<<<<<< Set here
+Common Name (eg, your name or your server's hostname) []:tango.telefonica.com                    <<<<<<<<<<<<<<<<<<<<<< Set here the DNS Domain!!!!!
+Email Address []:support@tangotelecom.com                    <<<<<<<<<<<<<<<<<<<<<< Set here
+
+
+MOBILY
+Country Name (2 letter code) [XX]:SA
+State or Province Name (full name) []:SAUDIARABIA
+Locality Name (eg, city) [Default City]:RIYADH
+Organization Name (eg, company) [Default Company Ltd]:MOBILY
+Organizational Unit Name (eg, section) []:CSG
+Common Name (eg, your name or your server's hostname) []:csg.mobily.com
+
+
+
+These credentials are valid ~ 40 years.
+This command shall trigger an interactive series of questions on the command line. Note that this certificate and key is being acquired for the customer and not for Tango, and the common name should probably not clash with any existing domains they are using internally. For these reasons, it is probably best to get guidance on the customer when performing this operation.
+
+The most important information provided here is the Common Name. This must correspond exactly with the public domain addressing the Nginx IP, or else HTTPS termination shall fail and you won't be able to login or access the UI. In the examples provided in this release note this corresponds to tango.telefonica.com but this can be anything that the customer deems appropriate.
+
+Now you can verify the installation, configuration, certificates and keys you have generated going directly to 3.1.5.3.4 (skip 3.1.5.3.2.x)
+
+3.1.5.3.2 Deploy certificates provided by CA and create private keys. Skip this step if 3.1.5.3.1 was completed. However, if you still need to generate the CSR file, go ahead with this step especially step 3.1.5.3.2.1.1
+INTRODUCTION:
+
+The flow to create certificate and privite key is:
+a. CA buy/obtain the pub certificate from Microsoft which is already installed/stored in all laptops/handsets all over the word before
+b. Tango generate CSR file and private key   <<<< Note that CRS can still be genearated if private key was already created by tango (probably, if 5.1.5.3.1 was done to prove PMUI works ok and deploy certificate provided by CA later like it happened in TF where self-sign certificate was done first and then TF gave us the CA certificate later)
+c.  Tango provide CRS binary to CA
+d. CA generates public certificate (note that CA sometimes also generate intermediary certificates)
+e. Tango get the public (and intermediary) certificates and deploy them under /etc/nginx/ssl/
+
+Call Flow (Secured):
+Computer --------------> PMUI
+PMUI ----pub cert (or CA Certificate) -----> Computer
+Computer asks user to store the pub cert sent by PMUI (if user trusts it is the actual one)
+Computer matches stored pub cert (or CA cert) and PMUI's pub cert. (They will match)
+Computer retrieves pub key
+Computer ------------ key pub + password ----------> PMUI
+PMUI --------login ok -----> Computer
+
+
+
+3.1.5.3.2.1 Create CSR file in case customer needs it
+Carry out this step in case we wont be using self-signed certificates, but if our certificates shall be authorized by CA => that is much better and more secure for us.
+
+3.1.5.3.2.1.1 IF PRIV KEY ALREADY EXISTS (If it doesnt exist, you will skip 3.1.5.3.2.1.2)
+openssl req -out /etc/nginx/ssl/tango.telecom.com.csr -key /etc/nginx/ssl/tango.telecom.com.pem -new
+
+
+@@@@@@@@@@@@@ Example: @@@@@@@@@@
+
+[root@IPXMIATCRTE2 16:24:17 certificates_GreenFieldInstallation]# openssl req -out tango.telecom.com.csr -key /etc/nginx/ssl/tango.telefonica.com.pem -new
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [XX]:ES
+State or Province Name (full name) []:MADRID
+Locality Name (eg, city) [Default City]:MADRID
+Organization Name (eg, company) [Default Company Ltd]:TELEFONICA
+Organizational Unit Name (eg, section) []:TANGO
+Common Name (eg, your name or your server's hostname) []:tango.telefonica.com
+Email Address []:support@tangotelecom.com
+
+Please enter the following 'extra' attributes
+to be sent with your certificate request
+A challenge password []:               <<<<<<<<<<<<<<<<<<<< t3l3com
+An optional company name []:TANGO_TELEFONICA
+
+
+
+
+3.1.5.3.2.1.2 IF PRIV KEY DOESNT EXIST (If it already exists or you completed 3.1.5.3.2.1.1, skipt this step)
+openssl req -out /etc/nginx/ssl/tango.telecom.com.csr -new -newkey rsa:2048 -nodes -keyout /etc/nginx/ssl/tango.telecom.com.pem
+
+
+3.1.5.3.2.1.3 test CSR file
+
+openssl req -in tango.telefonica.com.csr -noout -text
+
+cat /etc/nginx/ssl/tango.telefonica.com.csr and copy and paste onto this decoder at https://www.sslshopper.com/csr-decoder.html
+
+@@@@@@@@@@@@@ Example: RTE1DMZ @@@@@@@@@@
+
+[root@IPXMIATCRTE2 16:39:30 certificates_GreenFieldInstallation]# cat tango.telecom.com.csr
+-----BEGIN CERTIFICATE REQUEST-----
+MIIDIzCCAgsCAQAwgaQxCzAJBgNVBAYTAkVTMQ8wDQYDVQQIDAZNQURSSUQxDzAN
+BgNVBAcMBk1BRFJJRDETMBEGA1UECgwKVEVMRUZPTklDQTEOMAwGA1UECwwFVEFO
+R08xJTAjBgNVBAMMHG1jbS53aG9sZXNhbGUudGVsZWZvbmljYS5jb20xJzAlBgkq
+hkiG9w0BCQEWGHN1cHBvcnRAdGFuZ290ZWxlY29tLmNvbTCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAJNm/nfYXOMp5UyaRiVhzyMMLOUE0FZOq9USnnxU
+1ZIwhp6d4Dcf65NTDNkcnZcYuWTPJ6e3uHmA8egnyhAx8Ke1cuXpMTwDAqRYd93q
+MFkXkZRBAYrF4p9n6XeluvxPxHc6J6nCuub8TJnGIpP0ep3NeGIh2VCkWeu8HGt4
+aWyfzW8Y39q8NMG4ntDpnVq0lqaRFDqnEGFlhpd5/E43RejUoTFcVFqMUvpt3ZQA
+Mm6ifqompIMy5TVCpMYnybW1JglsuhjfzPtWNJodAFT2mCo2lgjFsvQT+ILUS47/
+jYz65BoqY8PAyt7bmGFQRGCa/WKND6cj3ADoOU2ueVedA+UCAwEAAaA5MBYGCSqG
+SIb3DQEJBzEJDAd0M2wzY29tMB8GCSqGSIb3DQEJAjESDBBUQU5HT19URUxFRk9O
+SUNBMA0GCSqGSIb3DQEBCwUAA4IBAQAnAwNKeAy7jy2sxvuYRnWzJXrtyKNcOXYC
+Jlyv9Fa1qa99+d6K86YqIbnXyplsRqwlDvnHZ8fqXiWXF6L/oCNLMAlUwwaT69+g
+l0RSPfOuFubA7Lor6BTdBl8t/WS/JrIHyhyp5IbbBral6vaCuwN9crdxcVW69/fA
+JsX8YXUKMaa+CWZWXnfvfneh0AR2Qnro0+qiuTSoyCZ9n1UMxoUDPwrtvYUqdZye
+ZxU1/BjRjjPSe7ws7n+7m38o659EDBhM2cDzg81CfSWpjrlFqjb9Y558e1R8Ga9b
+fDFSps7sq0+IcAZzyJItusGbxnDVbfdq8+NXKUz+QP3VCFXdzeTt
+-----END CERTIFICATE REQUEST-----
+
+
+3.1.5.3.2.1.4 Provide it to CA team
+
+3.1.5.3.3 Deploy certificates once CA has provided the public certificate
+Notes: 
+-Below, guide uses TF as an example. There, GlobalSign instructions says "Save this `Certificate Bundle` as a .crt". However, here, we are going to use .pem extention instead
+-For TF, GlobalSign says the final pub cert should be like this:
+Your completed file should be in this format:
+
+-----BEGIN CERTIFICATE-----
+#Your GlobalSign SSL Certificate#
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+#GlobalSign Intermediate Certificate#
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----   
+#GlobalSign Root Certificate#                 <<<<<<<<<<<<<<<<< They didnt provide this cert but it was ok with the other 2
+-----END CERTIFICATE-----
+
+
+3.1.5.3.3.1) cd /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/GlobalSign_Certs   (if doesnt exist, create it)
+3.1.5.3.3.2) Backup existing certificates if needed (otherwise skip this step) 
+NOTE: 	BACKAUPS ARE UNDER /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/GlobalSign_Certs/   WHILE WORK ON NEW CERTS UNDER /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/
+cp -rfp /etc/nginx/ssl/mcm.wholesale.telefonica.com.pem /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/GlobalSign_Certs/mcm.wholesale.telefonica.com.pem.orig_Rollback;
+cp -rfp /etc/nginx/ssl/mcm.wholesale.telefonica.com.cert.pem /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/GlobalSign_Certs/mcm.wholesale.telefonica.com.cert.pem.orig_Rollback;
+
+
+3.1.5.3.3.3) Create Pub certificate (GlobalSign SSL Certificate). Get it from TF and copy/paste it
+
+NOTE: WORK ON /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/
+
+cd /tango/logs/COSTAFF/hector/certificates_GreenFieldInstallation/
+vi mcm.wholesale.telefonica.com.cert.pem
+-----BEGIN CERTIFICATE-----
+MIIFSzCCBDOgAwIBAgIMfDOICs3UY1OLkhiuMA0GCSqGSIb3DQEBCwUAMGYxCzAJ
+BgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMTwwOgYDVQQDEzNH
+bG9iYWxTaWduIE9yZ2FuaXphdGlvbiBWYWxpZGF0aW9uIENBIC0gU0hBMjU2IC0g
+RzIwHhcNMTcxMjE5MDgwNjAxWhcNMTgxMjIwMDgwNjAxWjBwMQswCQYDVQQGEwJF
+UzEPMA0GA1UECBMGTWFkcmlkMQ8wDQYDVQQHEwZNYWRyaWQxGDAWBgNVBAoTD1Rl
+bGVmb25pY2EgUy5BLjElMCMGA1UEAxMcbWNtLndob2xlc2FsZS50ZWxlZm9uaWNh
+LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPDx/0EB+0GQNSUZ
+XUqE/QS8fFk0JlXkuEHb2U4CLfgrJ02jcWs3/cni1Us60V9buJzl469PJlODpL4q
+UkD4/ChiUCo45n6kw3XaSMtnNl/6FtPOkc6yGzrj5XSY4qU4v7nHQClmYSW3qr/W
+g4d7gQcHPZQ+Se/tgcUBkkZqy/P0a79BOcq51CWa32aozzZ/oOXmpUVyXIf9fedm
+N/ejETzKNH0ycdDY7xHir9m5z+vZMJzfLeLHVkytPQ26cJcwpL3sIzWzLfyv5/mR
+S7ege09r6/EskpSEnhVCyYW7BCs2JEj3hAhTzq7wECoZfWDZWsJl7s2Laj5Uv1To
+uK92yzsCAwEAAaOCAe0wggHpMA4GA1UdDwEB/wQEAwIFoDCBoAYIKwYBBQUHAQEE
+gZMwgZAwTQYIKwYBBQUHMAKGQWh0dHA6Ly9zZWN1cmUuZ2xvYmFsc2lnbi5jb20v
+Y2FjZXJ0L2dzb3JnYW5pemF0aW9udmFsc2hhMmcycjEuY3J0MD8GCCsGAQUFBzAB
+hjNodHRwOi8vb2NzcDIuZ2xvYmFsc2lnbi5jb20vZ3Nvcmdhbml6YXRpb252YWxz
+aGEyZzIwVgYDVR0gBE8wTTBBBgkrBgEEAaAyARQwNDAyBggrBgEFBQcCARYmaHR0
+cHM6Ly93d3cuZ2xvYmFsc2lnbi5jb20vcmVwb3NpdG9yeS8wCAYGZ4EMAQICMAkG
+A1UdEwQCMAAwSQYDVR0fBEIwQDA+oDygOoY4aHR0cDovL2NybC5nbG9iYWxzaWdu
+LmNvbS9ncy9nc29yZ2FuaXphdGlvbnZhbHNoYTJnMi5jcmwwJwYDVR0RBCAwHoIc
+bWNtLndob2xlc2FsZS50ZWxlZm9uaWNhLmNvbTAdBgNVHSUEFjAUBggrBgEFBQcD
+AQYIKwYBBQUHAwIwHQYDVR0OBBYEFOqXAa1Pz22ekgH9m2Jy7oA8csjrMB8GA1Ud
+IwQYMBaAFJbeYfG9HBYpUxzAzH07gwBA5hp8MA0GCSqGSIb3DQEBCwUAA4IBAQCa
+NDCOoatFo0KB+o0ShlVn+v4oPXlP9tvRje2fTVJk7QOGntD2bLqngYtd/+ILdRic
+rKUKk4H+tRgWLSLIrySmRUdFQm6tuEZi+eflWUX2qSPG6BV5qw/YIXLs7g1YeXoU
+0akRZK9V9fd80SJW2fgPQaqEAK492HPrdR+D8GQmaFRG8/YcJe+4Ek08JAvI4lqH
+W3pZLN8gIbihWUaxVVrmUCft/sn8srDhZ81OCgKRwYTECA37KQcXwesonCQOnOMZ
+Or3bwsgJZx7FPZmpuCf7xVBtf744fuIxYfk0Gn9EM2LojfXseTWZss2Cto4Kq/nt
+MInB8d8UoHNZBYxzaCFD
+-----END CERTIFICATE-----
+
+
+
+
+3.1.5.3.3.4) Add  Intermediate certificate   
+3.1.5.3.3.4.1) Go to https://support.globalsign.com/customer/portal/articles/1219303-organizationssl-intermediate-certificates
+Or https://support.globalsign.com/ca-certificates/intermediate-certificates/organizationssl-intermediate-certificates  (Same as above, its a redirection)
+- [Depricated] You are going to use "SHA-256 Orders (Default)" < OrganizationSSL SHA-256 R1 Intermediate Certificates which is the default one and the one that TF normally purchases  (Depricated. It is before May 27 2019)
+- You are going to use GlobalSign RSA Organization Validation CA - 2018  < OrganizationSSL SHA-256 R3 Intermediate Certificates which is the first on the list and the most updated
+3.1.5.3.3.4.3) Click on "View in Base6" button 
+3.1.5.3.3.4.4) Copy and paste  < Add it after of what you did in step 1.3.3). (At the end of file)
+vi mcm.wholesale.telefonica.com.cert.pem
+-----BEGIN CERTIFICATE-----
+MIIEaTCCA1GgAwIBAgILBAAAAAABRE7wQkcwDQYJKoZIhvcNAQELBQAwVzELMAkG
+A1UEBhMCQkUxGTAXBgNVBAoTEEdsb2JhbFNpZ24gbnYtc2ExEDAOBgNVBAsTB1Jv
+b3QgQ0ExGzAZBgNVBAMTEkdsb2JhbFNpZ24gUm9vdCBDQTAeFw0xNDAyMjAxMDAw
+MDBaFw0yNDAyMjAxMDAwMDBaMGYxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9i
+YWxTaWduIG52LXNhMTwwOgYDVQQDEzNHbG9iYWxTaWduIE9yZ2FuaXphdGlvbiBW
+YWxpZGF0aW9uIENBIC0gU0hBMjU2IC0gRzIwggEiMA0GCSqGSIb3DQEBAQUAA4IB
+DwAwggEKAoIBAQDHDmw/I5N/zHClnSDDDlM/fsBOwphJykfVI+8DNIV0yKMCLkZc
+C33JiJ1Pi/D4nGyMVTXbv/Kz6vvjVudKRtkTIso21ZvBqOOWQ5PyDLzm+ebomchj
+SHh/VzZpGhkdWtHUfcKc1H/hgBKueuqI6lfYygoKOhJJomIZeg0k9zfrtHOSewUj
+mxK1zusp36QUArkBpdSmnENkiN74fv7j9R7l/tyjqORmMdlMJekYuYlZCa7pnRxt
+Nw9KHjUgKOKv1CGLAcRFrW4rY6uSa2EKTSDtc7p8zv4WtdufgPDWi2zZCHlKT3hl
+2pK8vjX5s8T5J4BO/5ZS5gIg4Qdz6V0rvbLxAgMBAAGjggElMIIBITAOBgNVHQ8B
+Af8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUlt5h8b0cFilT
+HMDMfTuDAEDmGnwwRwYDVR0gBEAwPjA8BgRVHSAAMDQwMgYIKwYBBQUHAgEWJmh0
+dHBzOi8vd3d3Lmdsb2JhbHNpZ24uY29tL3JlcG9zaXRvcnkvMDMGA1UdHwQsMCow
+KKAmoCSGImh0dHA6Ly9jcmwuZ2xvYmFsc2lnbi5uZXQvcm9vdC5jcmwwPQYIKwYB
+BQUHAQEEMTAvMC0GCCsGAQUFBzABhiFodHRwOi8vb2NzcC5nbG9iYWxzaWduLmNv
+bS9yb290cjEwHwYDVR0jBBgwFoAUYHtmGkUNl8qJUC99BM00qP/8/UswDQYJKoZI
+hvcNAQELBQADggEBAEYq7l69rgFgNzERhnF0tkZJyBAW/i9iIxerH4f4gu3K3w4s
+32R1juUYcqeMOovJrKV3UPfvnqTgoI8UV6MqX+x+bRDmuo2wCId2Dkyy2VG7EQLy
+XN0cvfNVlg/UBsD84iOKJHDTu/B5GqdhcIOKrwbFINihY9Bsrk8y1658GEV1BSl3
+30JAZGSGvip2CTFvHST0mdCF/vIhCPnG9vHQWe3WVjwIKANnuvD58ZAWR65n5ryA
+SOlCdjSXVWkkDoPWoC209fN5ikkodBpBocLTJIg1MGCUF7ThBCIxPTsvFwayuJ2G
+K1pp74P1S8SqtCr4fKGxhZSM9AyHDPSsQPhZSZg=
+-----END CERTIFICATE-----
+
+
+
+Note that the der file   (from same page used in step 4) is not the equivalent of the der file we used to produce watcher-truststore.jks for kibana/ES/x-pack
+
+
+
+
+3.1.5.3.3.6) Upload and configure the Certificate Bundle & private key to a directory on the Nginx server.
+Notes:
+-Very Important – Make sure you adjust the file names to match your certificate files in /etc/nginx/conf.d/tomcat-basic.conf:
+ssl_certificate should be your primary certificate combined with the root & intermediate certificate bundle that you made in the previous step (step 4) see above).
+ssl_certificate_key should be the key file generated when you created the CSR.
+
+ 
+3.1.5.3.3.6.1) Copy pub certificate (pem file) under /etc/nginx/ssl/ directory
+cp mcm.wholesale.telefonica.com.cert.pem /etc/nginx/ssl/
+3.1.5.3.3.6.2) Set permissions:
+cd /etc/nginx/ssl/;
+chmod 644 mcm.wholesale.telefonica.com.cert.pem;
+chown root:root mcm.wholesale.telefonica.com.cert.pem
+
+3.1.5.3.4 Restart nginx if needed
+
+
+
+
+
+3.1.5.4 Put DNS domain in /etc/hosts to the Interface via the PMUI will be accessed 
+
+NOTE THAT DNS domain ALIAS MUST GO WITH IPXMIATCNAC1_dataplane (INTERFACE THAT IS ROUTED TO INTERNET THROUGH WHICH USERS OPEN THE PORTAL) IP AND NOT WITH O&M IPs OR O&M VIP
+
+on primary RTE machine (RTE1 in TF):
+vi /etc/hosts
+172.19.1.16     IPXMIATCRTE1            tangoC   IPXMIATCRTE1_primary IPXMIATCRTE1_backup tango.telefonica.com     <<< here
+
+on backup RTE machine (RTE2 in TF):
+vi /etc/hosts
+172.19.1.17     IPXMIATCRTE2            tangoD   IPXMIATCRTE2_primary IPXMIATCRTE2_backup tango.telefonica.com     <<< here
+
+
+	
+3.1.5.5 Start Nginx and create automatic statup
+Notes:
+- IMPORTANT!!! YOU MIGHT NEED TO COMPLETE THIS GUIDE FIRST: C:\Users\hbarriga\Documents\TANGO\MANUALS\PCC\SPCM\How_To_Install_SPCM_API_via_Nginx_Reverse.txt
+
+
+# systemctl start nginx.service
+# systemctl enable nginx.service
+ll /etc/systemd/system/multi-user.target.wants/nginx.service /usr/lib/systemd/system/nginx.service
+
+# systemctl status nginx
+
+3.1.5.6  Clean cache and check if reloads ok
+
+#nginx -s reload    <<<< As root.
+
+3.1.5.7 Quick Test to see nginx is working
+
+3.1.5.7.1 Test for https (port 443) ===> (You will also test for http (port 80) in step 3.1.5.7.2
+# curl -v --cacert /etc/nginx/ssl/tango.telefonica.com.cert.pem -I https://tango.telefonica.com
+
+This is an example of a good result:
+--------------------------------------------------
+[root@IPXMIATCRTE1 10:37:08 ssl]# curl -v --cacert /etc/nginx/ssl/tango.telefonica.com.cert.pem -I https://tango.telefonica.com
+* About to connect() to tango.telefonica.com port 443 (#0)
+*   Trying 66.119.82.198...
+* Connected to tango.telefonica.com (66.119.82.198) port 443 (#0)
+* Initializing NSS with certpath: sql:/etc/pki/nssdb
+*   CAfile: /etc/nginx/ssl/tango.telefonica.com.cert.pem
+  CApath: none
+* SSL connection using TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+* Server certificate:
+*       subject: E=john.lee@tangotelecom.com,CN=tango.telefonica.com,OU=Tango,O=Telefonica,L=Limerick,ST=Limerick,C=IE
+*       start date: Jun 01 08:30:43 2017 GMT
+*       expire date: May 22 08:30:43 2057 GMT
+*       common name: tango.telefonica.com
+*       issuer: E=john.lee@tangotelecom.com,CN=tango.telefonica.com,OU=Tango,O=Telefonica,L=Limerick,ST=Limerick,C=IE
+> HEAD / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: tango.telefonica.com
+> Accept: /
+>
+< HTTP/1.1 302 Found                          <<<<<<<<<<<<<<<<<<<<< This is good
+HTTP/1.1 302 Found
+< Server: nginx/1.12.1
+Server: nginx/1.12.1
+< Date: Thu, 20 Jul 2017 10:37:15 GMT
+Date: Thu, 20 Jul 2017 10:37:15 GMT
+< Content-Length: 0
+Content-Length: 0
+< Location: https://tango.telefonica.com/login
+Location: https://tango.telefonica.com/login
+< Connection: keep-alive
+Connection: keep-alive
+< Access-Control-Allow-Origin: *
+Access-Control-Allow-Origin: *
+< Access-Control-Allow-Methods: POST, GET,  DELETE, PUT, OPTIONS, CONNECT, HEAD
+Access-Control-Allow-Methods: POST, GET,  DELETE, PUT, OPTIONS, CONNECT, HEAD
+< Access-Control-Allow-Credentials: true
+Access-Control-Allow-Credentials: true
+< Access-Control-Max-Age: 3600
+Access-Control-Max-Age: 3600
+< Access-Control-Allow-Headers: Accept,Cache-Control,Content-Type,Origin,Pragma,Referer,User-Agent,accept,cache-control,content-type,origin,pragma,referer,user-agent,x-requested-with,authorization,Authorization,audit-trail-info
+Access-Control-Allow-Headers: Accept,Cache-Control,Content-Type,Origin,Pragma,Referer,User-Agent,accept,cache-control,content-type,origin,pragma,referer,user-agent,x-requested-with,authorization,Authorization,audit-trail-info
+< X-Frame-Options: SAMEORIGIN
+X-Frame-Options: SAMEORIGIN
+< Set-Cookie: JSESSIONID=3C397D3AA4AE059372BA525F88AFF506; Path=/; HttpOnly
+Set-Cookie: JSESSIONID=3C397D3AA4AE059372BA525F88AFF506; Path=/; HttpOnly
+
+<
+* Connection #0 to host tango.telefonica.com left intact
+--------------------------------------------------
+
+
+3.1.5.7.2 Test for http (port 80)
+curl -v --cacert /etc/nginx/ssl/tango.telefonica.com.cert.pem -I http://tango.telefonica.com
+
+
+* About to connect() to pcrfipxvas.wh.telefonica port 80 (#0)
+*   Trying 192.168.99.32...
+* Connected to pcrfipxvas.wh.telefonica (192.168.99.32) port 80 (#0)
+> HEAD / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: pcrfipxvas.wh.telefonica
+> Accept: */*
+>
+< HTTP/1.1 301 Moved Permanently      <<<<<<<<<<<<<<< This is good
+HTTP/1.1 301 Moved Permanently
+< Server: nginx
+Server: nginx
+< Date: Tue, 20 Feb 2018 13:18:22 GMT
+Date: Tue, 20 Feb 2018 13:18:22 GMT
+< Content-Type: text/html
+Content-Type: text/html
+< Content-Length: 178
+Content-Length: 178
+< Connection: keep-alive
+Connection: keep-alive
+< Location: https://pcrfipxvas.wh.telefonica/
+Location: https://pcrfipxvas.wh.telefonica/
+< X-XSS-Protection: 1; mode=block
+X-XSS-Protection: 1; mode=block
+< X-Frame-Options: SAMEORIGIN
+X-Frame-Options: SAMEORIGIN
+< X-Content-Type-Options: nosniff
+X-Content-Type-Options: nosniff
+
+<
+* Connection #0 to host pcrfipxvas.wh.telefonica left intact
+
+
+3.1.5.8 Add expiry/validity warning in the welcoming ssh banner
+Add these lines:
+
+# .bash_profile
+
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+hostanme=$(hostname)
+today=$(perl -e '@d=localtime time(); printf "%4d%02d%02d\n", $d[5]+1900,$d[4]+1,$d[3]')
+if [ "$today" -gt "20180330" ];then                                                                                <<<<<<<<<<<<< add here
+        PMUIlicenceWarning="`tput setaf 1`\nWARNING: PMUI Certificate Licence is expiring on 2018-04-30. Please contact support@tangotelecom.com\n`tput setaf 3`"                                                                                                       <<<<<<<<<<<<< add here
+fi                                                                                                                <<<<<<<<<<<<< add here
+        echo -e "`tput setaf 3`                                                                                   <<<<<<<<<<<<<<< add "-e" flag
+==================================================================================
+    _     _    __  __    _____                                ___    ___   ___
+   (_)   /_\   \ \/ /   |_   _|  __ _   _ _    __ _   ___    |   \  | _ \ | __|
+   | |  / _ \   >  <      | |   / _' | | ' \  / _' | / _ \   | |) | |   / | _|
+   |_| /_/ \_\ /_/\_\     |_|   \__,_| |_||_| \__, | \___/   |___/  |_|_\ |___|
+                                              |___/
+
+                                     TELEFONICA
+
+$hostanme
+
+ACCESS TO THIS SYSTEM IS STRICTLY RESTRICTED TO AUTHORIZED PERSONS ONLY.
+UNAUTHORIZED ACCESS TO THIS SYSTEM IS NOT ALLOWED AND EVERY ACTIVITY IS MONITORED.
+$PMUIlicenceWarning                                                                               <<<<<<<<<<<<< add here
+==================================================================================`tput sgr0`
+"
+fi
+
+# User specific environment and startup programs
+# are specified in ~/.bashrc
+
+
+
+3.1.5.9 Check certificate is readable and set up ok
+
+openssl x509 -in /etc/nginx/ssl/tango.telefonica.com.cert.pem -text
+ 
+ 
+ 
+ Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 12820845714349804768 (0xb1eccb3fdbe8cce0)
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=IE, ST=Limerick, L=Limerick, O=Telefonica, OU=Tango, CN=tango.telefonica.com/emailAddress=john.lee@tangotelecom.com
+        Validity
+            Not Before: Jun  1 08:30:43 2017 GMT
+            Not After : May 22 08:30:43 2057 GMT
+        Subject: C=IE, ST=Limerick, L=Limerick, O=Telefonica, OU=Tango, CN=tango.telefonica.com/emailAddress=john.lee@tangotelecom.com
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:a7:8b:2c:95:cf:56:2a:25:85:88:be:a5:07:c2:
+                    05:8d:42:a2:45:71:3e:7c:d3:38:05:2d:79:bd:40:
+                    93:80:32:64:24:fb:42:ff:60:b0:4a:f5:ad:c3:6b:
+                    1e:51:4e:25:b4:79:77:98:09:a2:28:3c:c9:f5:a0:
+                    48:d4:b8:02:c2:9f:f5:8c:9b:20:6a:d7:eb:42:e3:
+                    3f:e2:0f:78:27:21:0c:b1:76:4c:4c:18:02:38:1b:
+                    a1:06:f6:28:2a:7e:b8:60:e9:74:6d:80:3b:08:26:
+                    fe:15:86:99:01:d0:9c:52:38:cf:8f:26:84:db:9d:
+                    66:ec:09:0f:bc:15:df:b5:48:bd:71:c8:51:fc:73:
+                    69:60:69:a7:5f:7a:cf:96:cd:dc:67:05:cd:b2:7f:
+                    8f:d6:7f:ac:4d:05:7f:db:02:b5:38:5a:50:b1:b6:
+                    7a:62:0f:3e:3c:fe:49:fb:7e:dd:28:09:27:f0:69:
+                    86:1b:5a:f6:31:2b:17:59:08:c4:ab:cb:fe:3e:06:
+                    5c:51:4f:bd:66:81:1d:fd:9d:ea:35:21:9f:8e:56:
+                    e7:72:44:c2:aa:78:38:58:77:81:b8:e6:46:81:1f:
+                    80:7f:4c:27:58:c3:b7:9b:5e:9e:4e:52:b4:f1:b2:
+                    7e:da:ba:80:2a:b0:a4:83:16:0d:0b:83:84:23:9e:
+                    8c:25
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Subject Key Identifier:
+                E4:0C:28:18:DC:40:80:54:D4:E8:BC:7B:B2:3D:7F:58:4A:07:FD:1F
+            X509v3 Authority Key Identifier:
+                keyid:E4:0C:28:18:DC:40:80:54:D4:E8:BC:7B:B2:3D:7F:58:4A:07:FD:1F
+
+            X509v3 Basic Constraints:
+                CA:TRUE
+    Signature Algorithm: sha256WithRSAEncryption
+         21:f5:f7:77:b7:68:84:42:05:0a:36:27:9e:7e:7f:c9:65:b2:
+         7e:a0:fe:43:87:be:6c:9e:8f:9b:76:f1:b3:e3:4e:61:a4:ef:
+         e9:9d:b4:e6:ea:bc:13:7f:db:8d:40:fa:d4:32:aa:1b:fc:49:
+         6d:68:5c:55:e8:1b:bb:d1:27:72:07:be:af:7a:de:6f:b4:58:
+         6a:97:ee:b9:b3:c2:b6:94:e2:76:2d:9d:58:49:d1:f3:b4:de:
+         17:15:fb:d3:38:fd:90:ab:54:58:0a:1a:96:a3:9f:84:ad:1d:
+         7d:b7:d9:c8:3c:58:d1:b2:2b:b5:41:22:ab:d2:82:8b:1e:52:
+         23:de:74:00:77:a8:4b:d5:a0:d9:bd:49:79:f4:80:3a:aa:25:
+         83:46:f8:b4:ee:b2:54:2e:ef:ff:37:89:cb:00:c4:74:a8:ea:
+         c5:a0:7e:90:4d:4a:04:c4:1d:5c:8a:b4:f3:92:48:fa:03:68:
+         b4:24:fb:92:cc:d3:13:cd:c5:dc:7d:83:22:44:5e:65:4f:50:
+         46:5e:41:20:55:66:a1:f6:70:8d:6b:aa:df:b2:d0:88:57:f0:
+         bd:a1:46:22:62:a2:bc:5d:48:89:c1:80:6b:f7:89:35:8f:04:
+         b0:20:04:31:30:c7:1e:9d:8e:29:64:e1:6a:21:59:43:79:1b:
+         aa:fa:3d:0a
+-----BEGIN CERTIFICATE-----
+MIIEGTCCAwGgAwIBAgIJALHsyz/b6MzgMA0GCSqGSIb3DQEBCwUAMIGhMQswCQYD
+VQQGEwJJRTERMA8GA1UECAwITGltZXJpY2sxETAPBgNVBAcMCExpbWVyaWNrMRMw
+EQYDVQQKDApUZWxlZm9uaWNhMQ4wDAYDVQQLDAVUYW5nbzEdMBsGA1UEAwwUdGFu
+Z28udGVsZWZvbmljYS5jb20xKDAmBgkqhkiG9w0BCQEWGWpvaG4ubGVlQHRhbmdv
+dGVsZWNvbS5jb20wIBcNMTcwNjAxMDgzMDQzWhgPMjA1NzA1MjIwODMwNDNaMIGh
+MQswCQYDVQQGEwJJRTERMA8GA1UECAwITGltZXJpY2sxETAPBgNVBAcMCExpbWVy
+aWNrMRMwEQYDVQQKDApUZWxlZm9uaWNhMQ4wDAYDVQQLDAVUYW5nbzEdMBsGA1UE
+AwwUdGFuZ28udGVsZWZvbmljYS5jb20xKDAmBgkqhkiG9w0BCQEWGWpvaG4ubGVl
+QHRhbmdvdGVsZWNvbS5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB
+AQCniyyVz1YqJYWIvqUHwgWNQqJFcT580zgFLXm9QJOAMmQk+0L/YLBK9a3Dax5R
+TiW0eXeYCaIoPMn1oEjUuALCn/WMmyBq1+tC4z/iD3gnIQyxdkxMGAI4G6EG9igq
+frhg6XRtgDsIJv4VhpkB0JxSOM+PJoTbnWbsCQ+8Fd+1SL1xyFH8c2lgaadfes+W
+zdxnBc2yf4/Wf6xNBX/bArU4WlCxtnpiDz48/kn7ft0oCSfwaYYbWvYxKxdZCMSr
+y/4+BlxRT71mgR39neo1IZ+OVudyRMKqeDhYd4G45kaBH4B/TCdYw7ebXp5OUrTx
+sn7auoAqsKSDFg0Lg4QjnowlAgMBAAGjUDBOMB0GA1UdDgQWBBTkDCgY3ECAVNTo
+vHuyPX9YSgf9HzAfBgNVHSMEGDAWgBTkDCgY3ECAVNTovHuyPX9YSgf9HzAMBgNV
+HRMEBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQAh9fd3t2iEQgUKNieefn/JZbJ+
+oP5Dh75sno+bdvGz405hpO/pnbTm6rwTf9uNQPrUMqob/EltaFxV6Bu70SdyB76v
+et5vtFhql+65s8K2lOJ2LZ1YSdHztN4XFfvTOP2Qq1RYChqWo5+ErR19t9nIPFjR
+siu1QSKr0oKLHlIj3nQAd6hL1aDZvUl59IA6qiWDRvi07rJULu//N4nLAMR0qOrF
+oH6QTUoExB1cirTzkkj6A2i0JPuSzNMTzcXcfYMiRF5lT1BGXkEgVWah9nCNa6rf
+stCIV/C9oUYiYqK8XUiJwYBr94k1jwSwIAQxMMcenY4pZOFqIVlDeRuq+j0K
+-----END CERTIFICATE-----
+
+
+
+
+See below another example from TF after having deployed GlobalSign CA certificate on RTEDMZ machines
+
+Good result:
+
+
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            7c:33:88:0a:cd:d4:63:53:8b:92:18:ae
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=BE, O=GlobalSign nv-sa, CN=GlobalSign Organization Validation CA - SHA256 - G2
+        Validity
+            Not Before: Dec 19 08:06:01 2017 GMT
+            Not After : Dec 20 08:06:01 2018 GMT
+        Subject: C=ES, ST=Madrid, L=Madrid, O=Telefonica S.A., CN=mcm.wholesale.telefonica.com
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:f0:f1:ff:41:01:fb:41:90:35:25:19:5d:4a:84:
+                    fd:04:bc:7c:59:34:26:55:e4:b8:41:db:d9:4e:02:
+                    2d:f8:2b:27:4d:a3:71:6b:37:fd:c9:e2:d5:4b:3a:
+                    d1:5f:5b:b8:9c:e5:e3:af:4f:26:53:83:a4:be:2a:
+                    52:40:f8:fc:28:62:50:2a:38:e6:7e:a4:c3:75:da:
+                    48:cb:67:36:5f:fa:16:d3:ce:91:ce:b2:1b:3a:e3:
+                    e5:74:98:e2:a5:38:bf:b9:c7:40:29:66:61:25:b7:
+                    aa:bf:d6:83:87:7b:81:07:07:3d:94:3e:49:ef:ed:
+                    81:c5:01:92:46:6a:cb:f3:f4:6b:bf:41:39:ca:b9:
+                    d4:25:9a:df:66:a8:cf:36:7f:a0:e5:e6:a5:45:72:
+                    5c:87:fd:7d:e7:66:37:f7:a3:11:3c:ca:34:7d:32:
+                    71:d0:d8:ef:11:e2:af:d9:b9:cf:eb:d9:30:9c:df:
+                    2d:e2:c7:56:4c:ad:3d:0d:ba:70:97:30:a4:bd:ec:
+                    23:35:b3:2d:fc:af:e7:f9:91:4b:b7:a0:7b:4f:6b:
+                    eb:f1:2c:92:94:84:9e:15:42:c9:85:bb:04:2b:36:
+                    24:48:f7:84:08:53:ce:ae:f0:10:2a:19:7d:60:d9:
+                    5a:c2:65:ee:cd:8b:6a:3e:54:bf:54:e8:b8:af:76:
+                    cb:3b
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Key Usage: critical
+                Digital Signature, Key Encipherment
+            Authority Information Access:
+                CA Issuers - URI:http://secure.globalsign.com/cacert/gsorganizationvalsha2g2r1.crt
+                OCSP - URI:http://ocsp2.globalsign.com/gsorganizationvalsha2g2
+
+            X509v3 Certificate Policies:
+                Policy: 1.3.6.1.4.1.4146.1.20
+                  CPS: https://www.globalsign.com/repository/
+                Policy: 2.23.140.1.2.2
+
+            X509v3 Basic Constraints:
+                CA:FALSE
+            X509v3 CRL Distribution Points:
+
+                Full Name:
+                  URI:http://crl.globalsign.com/gs/gsorganizationvalsha2g2.crl
+
+            X509v3 Subject Alternative Name:
+                DNS:mcm.wholesale.telefonica.com
+            X509v3 Extended Key Usage:
+                TLS Web Server Authentication, TLS Web Client Authentication
+            X509v3 Subject Key Identifier:
+                EA:97:01:AD:4F:CF:6D:9E:92:01:FD:9B:62:72:EE:80:3C:72:C8:EB
+            X509v3 Authority Key Identifier:
+                keyid:96:DE:61:F1:BD:1C:16:29:53:1C:C0:CC:7D:3B:83:00:40:E6:1A:7C
+
+    Signature Algorithm: sha256WithRSAEncryption
+         9a:34:30:8e:a1:ab:45:a3:42:81:fa:8d:12:86:55:67:fa:fe:
+         28:3d:79:4f:f6:db:d1:8d:ed:9f:4d:52:64:ed:03:86:9e:d0:
+         f6:6c:ba:a7:81:8b:5d:ff:e2:0b:75:18:9c:ac:a5:0a:93:81:
+         fe:b5:18:16:2d:22:c8:af:24:a6:45:47:45:42:6e:ad:b8:46:
+         62:f9:e7:e5:59:45:f6:a9:23:c6:e8:15:79:ab:0f:d8:21:72:
+         ec:ee:0d:58:79:7a:14:d1:a9:11:64:af:55:f5:f7:7c:d1:22:
+         56:d9:f8:0f:41:aa:84:00:ae:3d:d8:73:eb:75:1f:83:f0:64:
+         26:68:54:46:f3:f6:1c:25:ef:b8:12:4d:3c:24:0b:c8:e2:5a:
+         87:5b:7a:59:2c:df:20:21:b8:a1:59:46:b1:55:5a:e6:50:27:
+         ed:fe:c9:fc:b2:b0:e1:67:cd:4e:0a:02:91:c1:84:c4:08:0d:
+         fb:29:07:17:c1:eb:28:9c:24:0e:9c:e3:19:3a:bd:db:c2:c8:
+         09:67:1e:c5:3d:99:a9:b8:27:fb:c5:50:6d:7f:be:38:7e:e2:
+         31:61:f9:34:1a:7f:44:33:62:e8:8d:f5:ec:79:35:99:b2:cd:
+         82:b6:8e:0a:ab:f9:ed:30:89:c1:f1:df:14:a0:73:59:05:8c:
+         73:68:21:43
+-----BEGIN CERTIFICATE-----
+MIIFSzCCBDOgAwIBAgIMfDOICs3UY1OLkhiuMA0GCSqGSIb3DQEBCwUAMGYxCzAJ
+BgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMTwwOgYDVQQDEzNH
+bG9iYWxTaWduIE9yZ2FuaXphdGlvbiBWYWxpZGF0aW9uIENBIC0gU0hBMjU2IC0g
+RzIwHhcNMTcxMjE5MDgwNjAxWhcNMTgxMjIwMDgwNjAxWjBwMQswCQYDVQQGEwJF
+UzEPMA0GA1UECBMGTWFkcmlkMQ8wDQYDVQQHEwZNYWRyaWQxGDAWBgNVBAoTD1Rl
+bGVmb25pY2EgUy5BLjElMCMGA1UEAxMcbWNtLndob2xlc2FsZS50ZWxlZm9uaWNh
+LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPDx/0EB+0GQNSUZ
+XUqE/QS8fFk0JlXkuEHb2U4CLfgrJ02jcWs3/cni1Us60V9buJzl469PJlODpL4q
+UkD4/ChiUCo45n6kw3XaSMtnNl/6FtPOkc6yGzrj5XSY4qU4v7nHQClmYSW3qr/W
+g4d7gQcHPZQ+Se/tgcUBkkZqy/P0a79BOcq51CWa32aozzZ/oOXmpUVyXIf9fedm
+N/ejETzKNH0ycdDY7xHir9m5z+vZMJzfLeLHVkytPQ26cJcwpL3sIzWzLfyv5/mR
+S7ege09r6/EskpSEnhVCyYW7BCs2JEj3hAhTzq7wECoZfWDZWsJl7s2Laj5Uv1To
+uK92yzsCAwEAAaOCAe0wggHpMA4GA1UdDwEB/wQEAwIFoDCBoAYIKwYBBQUHAQEE
+gZMwgZAwTQYIKwYBBQUHMAKGQWh0dHA6Ly9zZWN1cmUuZ2xvYmFsc2lnbi5jb20v
+Y2FjZXJ0L2dzb3JnYW5pemF0aW9udmFsc2hhMmcycjEuY3J0MD8GCCsGAQUFBzAB
+hjNodHRwOi8vb2NzcDIuZ2xvYmFsc2lnbi5jb20vZ3Nvcmdhbml6YXRpb252YWxz
+aGEyZzIwVgYDVR0gBE8wTTBBBgkrBgEEAaAyARQwNDAyBggrBgEFBQcCARYmaHR0
+cHM6Ly93d3cuZ2xvYmFsc2lnbi5jb20vcmVwb3NpdG9yeS8wCAYGZ4EMAQICMAkG
+A1UdEwQCMAAwSQYDVR0fBEIwQDA+oDygOoY4aHR0cDovL2NybC5nbG9iYWxzaWdu
+LmNvbS9ncy9nc29yZ2FuaXphdGlvbnZhbHNoYTJnMi5jcmwwJwYDVR0RBCAwHoIc
+bWNtLndob2xlc2FsZS50ZWxlZm9uaWNhLmNvbTAdBgNVHSUEFjAUBggrBgEFBQcD
+AQYIKwYBBQUHAwIwHQYDVR0OBBYEFOqXAa1Pz22ekgH9m2Jy7oA8csjrMB8GA1Ud
+IwQYMBaAFJbeYfG9HBYpUxzAzH07gwBA5hp8MA0GCSqGSIb3DQEBCwUAA4IBAQCa
+NDCOoatFo0KB+o0ShlVn+v4oPXlP9tvRje2fTVJk7QOGntD2bLqngYtd/+ILdRic
+rKUKk4H+tRgWLSLIrySmRUdFQm6tuEZi+eflWUX2qSPG6BV5qw/YIXLs7g1YeXoU
+0akRZK9V9fd80SJW2fgPQaqEAK492HPrdR+D8GQmaFRG8/YcJe+4Ek08JAvI4lqH
+W3pZLN8gIbihWUaxVVrmUCft/sn8srDhZ81OCgKRwYTECA37KQcXwesonCQOnOMZ
+Or3bwsgJZx7FPZmpuCf7xVBtf744fuIxYfk0Gn9EM2LojfXseTWZss2Cto4Kq/nt
+MInB8d8UoHNZBYxzaCFD
+-----END CERTIFICATE-----
+
+ 
+
+
+3.1.5.10 If PMUI is running (otherwise skip this step), use this website to check eveyrthing is ok
+
+https://globalsign.ssllabs.com/   <<<<< Put PMUI domain
+
+3.1.5.11 If PMUI is running (otherwise skip this step), open PMUI and check it shows the green "Secured" tag (see top left-hand courner on chrome)
+ 
+
+3.1.6	Highly-Available (HA) Nginx
+The technique recommended to achieve this is DNS fallback, a description of which is out of scope of this release note. 
+
+3.1.7 Add campaign-manager nginx lines into /etc/nginx/conf.d/tomcat-basic.conf
