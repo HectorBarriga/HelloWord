@@ -1,0 +1,77 @@
+External access to tango server
+---------------------------------------
+
+Access to atlas is restricted.
+
+Likewise, the telnet daemon is not allowed to run. The only mechanism to gain terminal access to atlas is via Secure Shell (ssh) or root login with a password from the system console. Only a few user accounts are allowed access, using SSH2 1024-bit public/private keys as described below.
+
+To setup public/private keys using SSH, a recent version of PuTTY needs to be installed on Windows systems. Choose the Windows-style installer from:
+
+http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html <<<<<<< OLD, might not be good
+
+The 5 PUTTY binaries should be installed and it may be necessary to add the target directory to the PATH (click on My Computer/Properties/Advanced/Environment). 
+
+puttygen is used to generate the keys; 
+putty is used for gaining terminal access; 
+psftp is an ssh ftp client.
+
+Please refer to putty.hlp for more on setting up the public key SSH authentication (especially Chapter 8).
+
+A synopsis of what needs to be done is as follows:
+
+  1. Launch puttygen.exe
+
+  2. In the Parameters section at the bottom of the window, select SSH2 RSA.
+
+  3. In the Actions section (middle of window), click the Generate button.
+
+  4. Shake your mouse pointer in the Key section until the key is generated.
+
+  5. In the Key Comment field, type in a name for the key (e.g. “SSH2 key for atlas”).
+
+  6. Enter and re-enter a passphrase (between 10 and 30 characters) –
+     this passphrase is used to encrypt the file that will be used to
+     store your SSH key on disk. You will be asked for this passphrase
+     every time you need to use the key (e.g. to login).
+
+  7. Click the “Save private key” button (Actions section) and choose
+     an appropriate location and file name for the private key file.
+
+  8. Select the content of the public key area in the Key section –
+     this needs to be pasted into $HOME/.ssh/authorized_keys2 on the
+     target server (e.g. atlas).Note: do NOT save this to file : just copy
+     content and paste it into email/editor and send to to administrator.
+
+To use the key:
+
+  1. Launch putty
+
+  2. Create a Saved Session with a suitable name – the configuration
+     items necessary are:
+
+        1.Hostname or IP address of target server (86.43.69.175)
+
+        2.Select the SSH protocol (use port number 15202)
+
+        3.In the Connection category, enter your username ($HOME, normally your tangier's user name) in
+           the “Auto-login username” field.
+
+        4.In Connection ? SSH, select 2 as the preferred SSH protocol version.
+
+        5.In Connection ? SSH ? Auth, click the browse button to  select the
+          filename of the stored private key (item 7 in the previous list).
+
+        6. Select the Session category again, enter a name for the session and
+           click the saved button.
+
+  3.Double-click on the saved session to launch an SSH2 encrypted
+    session between your computer and the target server – you will be
+    asked for the passphrase you entered in step 6 in the previous list.
+
+To use the key with psftp, from a command prompt in Windows, enter        <<<<<<<<<<<<<<<< DEPRICATED. Use WinSCP instead
+
+   *    psftp <saved session name>
+
+The <saved session name> is what was entered in step 2f above.
+
+

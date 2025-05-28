@@ -1,0 +1,43 @@
+Access to thor (tango internal sftp server)
+-------------------------------------------
+
+Access to thor is restricted. 
+
+Likewise, the telnet daemon is not allowed to run. The only mechanism to gain terminal access to thor is via Secure FTP.
+Only a few user accounts are allowed a remote/local access, using SSH2 1024-bit public/private keys (CO and some other authorised persons).
+
+To use the key:
+
+On unix :
+save your private key as $HOME/.ssh/id_rsa
+ 
+local access from tango localnet:
+$sftp username@thor
+
+remote access:
+$sftp -oPort=15303 username@sftp.tangotelecom.com (you can also use sftp.tangotelecom.com instead of IP address)
+
+On Windows :
+
+  1. Launch win SCP
+
+  2. Create a New session 
+    input following items:
+
+        1.Hostname or IP address of target server (87.198.131.34 or sftp.tangotelecom.com for remote access, thor for internal access)
+
+        2.Select the SSH protocol (use port number 15303 for remote access, 22 for internal access)
+
+        3.User name
+
+        4.Select private key file
+
+        5.Set protocol SFTP (default)
+
+        6. Save the session with suiatable name (Save button)
+
+  3.Double-click on the saved session to launch an SSH2 encrypted
+    session between your computer and the target server. You will be
+    asked for the passphrase.
+
+On successful login you will login to /ftp/tango directory on the server. Normally all releases are kept in releases subdirectory. You also have access to your personal directory there : /home/username.
