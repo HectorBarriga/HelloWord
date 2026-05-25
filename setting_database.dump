@@ -1,0 +1,323 @@
+-- MySQL dump 10.13  Distrib 8.0.17, for Win64 (x86_64)
+--
+-- Host: localhost    Database: setting_database
+-- ------------------------------------------------------
+-- Server version	8.0.17
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES UTF8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `basic_auth`
+--
+
+DROP TABLE IF EXISTS `basic_auth`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `basic_auth` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `setting_id` int(11) NOT NULL,
+  `username_` varchar(35) NOT NULL,
+  `password_` varchar(35) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `setting_id` (`setting_id`),
+  CONSTRAINT `basic_auth_ibfk_1` FOREIGN KEY (`setting_id`) REFERENCES `setting` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=162 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `basic_auth`
+--
+
+LOCK TABLES `basic_auth` WRITE;
+/*!40000 ALTER TABLE `basic_auth` DISABLE KEYS */;
+INSERT INTO `basic_auth` VALUES (153,319,'',''),(154,320,'',''),(155,321,'',''),(157,322,'',''),(158,323,'',''),(159,324,'',''),(160,325,'',''),(161,326,'','');
+/*!40000 ALTER TABLE `basic_auth` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cluster`
+--
+
+DROP TABLE IF EXISTS `cluster`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `cluster` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `cluster_name` varchar(45) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `cluster`
+--
+
+LOCK TABLES `cluster` WRITE;
+/*!40000 ALTER TABLE `cluster` DISABLE KEYS */;
+INSERT INTO `cluster` VALUES (56,'PCC'),(57,'UTC'),(58,'RTE');
+/*!40000 ALTER TABLE `cluster` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `command`
+--
+
+DROP TABLE IF EXISTS `command`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `command` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `command_setting_id` int(11) NOT NULL,
+  `command` varchar(500) DEFAULT NULL,
+  `directory` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `command_setting_id` (`command_setting_id`),
+  KEY `file_index` (`id`,`command`,`directory`),
+  CONSTRAINT `command_ibfk_1` FOREIGN KEY (`command_setting_id`) REFERENCES `command_setting` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `command`
+--
+
+LOCK TABLES `command` WRITE;
+/*!40000 ALTER TABLE `command` DISABLE KEYS */;
+INSERT INTO `command` VALUES (5,4,'cmd /c dir','..'),(7,2,'cmd /c dir2','..'),(40,7,'cmd /c echo %CD%','.'),(43,12,'cmd /c dir','.'),(44,10,'ping google.ie','.'),(45,11,'ping google.ie','.');
+/*!40000 ALTER TABLE `command` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `command_result`
+--
+
+DROP TABLE IF EXISTS `command_result`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `command_result` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `command_setting_id` int(11) NOT NULL,
+  `command_output` varchar(800) DEFAULT NULL,
+  `status_ok` tinyint(1) DEFAULT NULL,
+  `modify_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `severity` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `command_setting_id` (`command_setting_id`),
+  CONSTRAINT `command_result_ibfk_1` FOREIGN KEY (`command_setting_id`) REFERENCES `command_setting` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=986 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `command_result`
+--
+
+LOCK TABLES `command_result` WRITE;
+/*!40000 ALTER TABLE `command_result` DISABLE KEYS */;
+INSERT INTO `command_result` VALUES (978,2,NULL,0,'2021-03-17 22:00:17',3),(979,4,NULL,0,'2021-03-17 22:00:17',3),(980,7,NULL,0,'2021-03-17 22:00:17',3),(983,10,NULL,0,'2021-03-17 22:00:20',3),(984,11,NULL,0,'2021-03-17 22:00:23',3),(985,12,NULL,0,'2021-03-17 22:00:23',3);
+/*!40000 ALTER TABLE `command_result` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `command_setting`
+--
+
+DROP TABLE IF EXISTS `command_setting`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `command_setting` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `test_name` varchar(255) NOT NULL,
+  `search_word` varchar(45) DEFAULT NULL,
+  `expected` tinyint(1) DEFAULT NULL,
+  `info` varchar(255) DEFAULT NULL,
+  `modify_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `severity` int(11) DEFAULT NULL,
+  `cluster_id` int(11) NOT NULL,
+  `machine_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `cluster_id` (`cluster_id`),
+  KEY `machine_id` (`machine_id`),
+  KEY `file_index` (`id`,`modify_date`),
+  CONSTRAINT `command_setting_ibfk_1` FOREIGN KEY (`cluster_id`) REFERENCES `cluster` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `command_setting_ibfk_2` FOREIGN KEY (`machine_id`) REFERENCES `machine` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `command_setting`
+--
+
+LOCK TABLES `command_setting` WRITE;
+/*!40000 ALTER TABLE `command_setting` DISABLE KEYS */;
+INSERT INTO `command_setting` VALUES (2,'test1','arthur',1,'','2021-03-16 13:39:57',3,56,108),(4,'test1','',0,'','2021-03-16 13:33:04',3,56,108),(7,'test1','',0,'','2021-03-16 16:48:17',3,57,109),(10,'google alived','',0,'','2021-03-17 16:23:03',3,56,108),(11,'google alived','',0,'','2021-03-17 16:23:19',3,56,108),(12,'test1','fish',1,'','2021-03-16 18:54:57',3,57,109);
+/*!40000 ALTER TABLE `command_setting` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `header`
+--
+
+DROP TABLE IF EXISTS `header`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `header` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `setting_id` int(11) NOT NULL,
+  `header_key` varchar(45) NOT NULL,
+  `header_value` varchar(45) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `setting_id` (`setting_id`),
+  CONSTRAINT `header_ibfk_1` FOREIGN KEY (`setting_id`) REFERENCES `setting` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=484 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `header`
+--
+
+LOCK TABLES `header` WRITE;
+/*!40000 ALTER TABLE `header` DISABLE KEYS */;
+INSERT INTO `header` VALUES (457,319,'',''),(458,319,'',''),(459,319,'',''),(460,320,'',''),(461,320,'',''),(462,320,'',''),(463,321,'',''),(464,321,'',''),(465,321,'',''),(469,322,'',''),(470,322,'',''),(471,322,'',''),(472,323,'',''),(473,323,'',''),(474,323,'',''),(475,324,'',''),(476,324,'',''),(477,324,'',''),(478,325,'',''),(479,325,'',''),(480,325,'',''),(481,326,'',''),(482,326,'',''),(483,326,'','');
+/*!40000 ALTER TABLE `header` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `machine`
+--
+
+DROP TABLE IF EXISTS `machine`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `machine` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `machine_name` varchar(45) NOT NULL,
+  `cluster_id` int(11) NOT NULL,
+  `setting_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `cluster_id` (`cluster_id`),
+  KEY `setting_id` (`setting_id`),
+  CONSTRAINT `machine_ibfk_1` FOREIGN KEY (`cluster_id`) REFERENCES `cluster` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `machine_ibfk_2` FOREIGN KEY (`setting_id`) REFERENCES `setting` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=113 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `machine`
+--
+
+LOCK TABLES `machine` WRITE;
+/*!40000 ALTER TABLE `machine` DISABLE KEYS */;
+INSERT INTO `machine` VALUES (108,'Machine 1',56,NULL),(109,'Machine 1',57,NULL),(110,'Machine 1',58,NULL),(112,'last',58,NULL);
+/*!40000 ALTER TABLE `machine` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `result`
+--
+
+DROP TABLE IF EXISTS `result`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `result` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `setting_id` int(11) NOT NULL,
+  `json` varchar(800) DEFAULT NULL,
+  `status_ok` tinyint(1) DEFAULT NULL,
+  `modify_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `severity` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `setting_id` (`setting_id`),
+  CONSTRAINT `result_ibfk_1` FOREIGN KEY (`setting_id`) REFERENCES `setting` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3535 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `result`
+--
+
+LOCK TABLES `result` WRITE;
+/*!40000 ALTER TABLE `result` DISABLE KEYS */;
+INSERT INTO `result` VALUES (3527,319,NULL,0,'2021-03-17 22:00:23',3),(3528,320,NULL,0,'2021-03-17 22:00:24',3),(3529,321,NULL,1,'2021-03-17 22:00:24',3),(3530,322,NULL,1,'2021-03-17 22:00:24',3),(3531,323,NULL,0,'2021-03-17 22:00:24',3),(3532,324,NULL,1,'2021-03-17 22:00:24',3),(3533,325,NULL,1,'2021-03-17 22:00:24',3),(3534,326,NULL,0,'2021-03-17 22:00:24',3);
+/*!40000 ALTER TABLE `result` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `setting`
+--
+
+DROP TABLE IF EXISTS `setting`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `setting` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `test_name` varchar(255) NOT NULL,
+  `api_url` varchar(255) NOT NULL,
+  `search_word` varchar(45) DEFAULT NULL,
+  `expected` tinyint(1) DEFAULT NULL,
+  `info` varchar(255) DEFAULT NULL,
+  `curl` varchar(255) NOT NULL,
+  `modify_date` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `severity` int(11) DEFAULT '1',
+  `cluster_id` int(11) NOT NULL,
+  `machine_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `cluster_id` (`cluster_id`),
+  KEY `machine_id` (`machine_id`),
+  KEY `api_index` (`id`,`api_url`,`modify_date`),
+  CONSTRAINT `setting_ibfk_1` FOREIGN KEY (`cluster_id`) REFERENCES `cluster` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `setting_ibfk_2` FOREIGN KEY (`machine_id`) REFERENCES `machine` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=327 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `setting`
+--
+
+LOCK TABLES `setting` WRITE;
+/*!40000 ALTER TABLE `setting` DISABLE KEYS */;
+INSERT INTO `setting` VALUES (319,'test2','http://localhost:8080/tango-settings-rest/api/settings/get/318','',0,'','curl -X GET http://localhost:8080/tango-settings-rest/api/settings/get/318','2021-03-15 10:09:36',3,56,108),(320,'test1','https://jsonplaceholder.typicode.com/todos/1','delectus',0,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-15 10:48:33',3,57,109),(321,'test1','https://jsonplaceholder.typicode.com/todos/1','delectus',1,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-15 10:49:08',3,58,110),(322,'test1','https://jsonplaceholder.typicode.com/todos/1','delectus',1,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-15 19:56:57',3,56,108),(323,'3','https://jsonplaceholder.typicode.com/todos/1','',0,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-15 19:57:26',3,56,108),(324,'4','https://jsonplaceholder.typicode.com/todos/1','delectus',1,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-15 21:13:24',3,56,108),(325,'test2','https://jsonplaceholder.typicode.com/todos/1','delectus',1,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-16 14:05:53',3,57,109),(326,'3','https://jsonplaceholder.typicode.com/todos/1','',0,'','curl -X GET https://jsonplaceholder.typicode.com/todos/1','2021-03-16 15:36:22',3,57,109);
+/*!40000 ALTER TABLE `setting` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `severity`
+--
+
+DROP TABLE IF EXISTS `severity`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `severity` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `severity` varchar(35) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `severity`
+--
+
+LOCK TABLES `severity` WRITE;
+/*!40000 ALTER TABLE `severity` DISABLE KEYS */;
+/*!40000 ALTER TABLE `severity` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2021-03-17 22:18:54
